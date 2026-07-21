@@ -10,6 +10,7 @@ export default async function handler(req, res) {
 
   try {
     const order = req.body;
+    const ORDER_PREFIX = "tavas";
 
     console.log("========== NEW SHOPIFY ORDER ==========");
 
@@ -157,7 +158,7 @@ console.log("Payment Type:", paymentType);
     // ============================
 
     addParam("order_id", order.id);
-    addParam("order_number", order.order_number);
+    addParam("order_number", `${ORDER_PREFIX}${order.order_number}`);
     addParam("order_date", order.created_at);
     addParam("total_price", order.total_price);
 
