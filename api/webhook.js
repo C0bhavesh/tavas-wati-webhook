@@ -37,21 +37,28 @@ export default async function handler(req, res) {
 
     console.log("Target:", target);
 
-    // ============================
-    // Payment Type
-    // ============================
+   // ============================
+// Payment Type From Shopify Tags
+// ============================
 
-    const gateways = order.payment_gateway_names || [];
+const tags = (order.tags || "")
+  .split(",")
+  .map(tag => tag.trim().toLowerCase());
 
-    const paymentType = gateways.some((gateway) =>
-      gateway.toLowerCase().includes("cash")
-    )
-      ? "cod"
-      : "prepaid";
+let paymentType = "";
 
-    const paymentGateway = gateways.join(", ");
+if (tags.includes("cod")) {
+  paymentType = "cod";
+} else if (tags.includes("online")) {
+  paymentType = "prepaid";
+}
 
-    console.log("Payment Type:", paymentType);
+// Keep the original gateway name for reference
+const gateways = order.payment_gateway_names || [];
+const paymentGateway = gateways.join(", ");
+
+console.log("Shopify Tags:", tags);
+console.log("Payment Type:", paymentType);
 
     // ============================
     // Order Status
@@ -87,10 +94,6 @@ export default async function handler(req, res) {
     // ============================
     // COD Confirmation Status
     // ============================
-
-    const tags = (order.tags || "")
-      .split(",")
-      .map((tag) => tag.trim().toLowerCase());
 
     let codConfirmationStatus = "";
 
