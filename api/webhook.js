@@ -38,28 +38,28 @@ export default async function handler(req, res) {
 
     console.log("Target:", target);
 
-   // ============================
-// Payment Type From Shopify Tags
-// ============================
+    // ============================
+    // Payment Type From Shopify Tags
+    // ============================
 
-const tags = (order.tags || "")
-  .split(",")
-  .map(tag => tag.trim().toLowerCase());
+    const tags = (order.tags || "")
+      .split(",")
+      .map((tag) => tag.trim().toLowerCase());
 
-let paymentType = "";
+    let paymentType = "";
 
-if (tags.includes("cod")) {
-  paymentType = "cod";
-} else if (tags.includes("online")) {
-  paymentType = "prepaid";
-}
+    if (tags.includes("cod")) {
+      paymentType = "cod";
+    } else if (tags.includes("online")) {
+      paymentType = "prepaid";
+    }
 
-// Keep the original gateway name for reference
-const gateways = order.payment_gateway_names || [];
-const paymentGateway = gateways.join(", ");
+    // Keep the original gateway name
+    const gateways = order.payment_gateway_names || [];
+    const paymentGateway = gateways.join(", ");
 
-console.log("Shopify Tags:", tags);
-console.log("Payment Type:", paymentType);
+    console.log("Shopify Tags:", tags);
+    console.log("Payment Type:", paymentType);
 
     // ============================
     // Order Status
@@ -69,9 +69,7 @@ console.log("Payment Type:", paymentType);
 
     const orderEnvironment = order.test ? "test" : "live";
 
-    const cancelStatus = order.cancelled_at
-      ? "cancelled"
-      : "active";
+    const cancelStatus = order.cancelled_at ? "cancelled" : "active";
 
     // ============================
     // Product Details
@@ -79,13 +77,9 @@ console.log("Payment Type:", paymentType);
 
     const lineItems = order.line_items || [];
 
-    const productNames = lineItems
-      .map((item) => item.name)
-      .join(", ");
+    const productNames = lineItems.map((item) => item.name).join(", ");
 
-    const productSkus = lineItems
-      .map((item) => item.sku)
-      .join(", ");
+    const productSkus = lineItems.map((item) => item.sku).join(", ");
 
     const productQuantity = lineItems.reduce(
       (sum, item) => sum + item.quantity,
@@ -112,7 +106,6 @@ console.log("Payment Type:", paymentType);
       }
     }
 
-    console.log("Shopify Tags:", tags);
     console.log("COD Confirmation Status:", codConfirmationStatus);
 
     // ============================
@@ -138,18 +131,20 @@ console.log("Payment Type:", paymentType);
     // Customer
     // ============================
 
-    addParam(
-      "customer_first_name",
+    const firstName =
       order.customer?.first_name ||
-        order.shipping_address?.first_name
-    );
+      order.shipping_address?.first_name ||
+      "";
 
-    addParam(
-      "customer_last_name",
+    const lastName =
       order.customer?.last_name ||
-        order.shipping_address?.last_name
-    );
+      order.shipping_address?.last_name ||
+      "";
 
+    const customerName = `${firstName} ${lastName}`.trim();
+
+    addParam("customer_first_name", firstName);
+    addParam("customer_last_name", lastName);
     addParam("customer_phone", phone);
     addParam("email", order.email);
 
@@ -177,25 +172,10 @@ console.log("Payment Type:", paymentType);
     // Shipping
     // ============================
 
-    addParam(
-      "shipping_city",
-      order.shipping_address?.city
-    );
-
-    addParam(
-      "shipping_state",
-      order.shipping_address?.province
-    );
-
-    addParam(
-      "shipping_country",
-      order.shipping_address?.country
-    );
-
-    addParam(
-      "shipping_pincode",
-      order.shipping_address?.zip
-    );
+    addParam("shipping_city", order.shipping_address?.city);
+    addParam("shipping_state", order.shipping_address?.province);
+    addParam("shipping_country", order.shipping_address?.country);
+    addParam("shipping_pincode", order.shipping_address?.zip);
 
     // ============================
     // Products
@@ -213,25 +193,53 @@ console.log("Payment Type:", paymentType);
     addParam("cancel_reason", order.cancel_reason);
     addParam("cancelled_at", order.cancelled_at);
 
-    console.log("Updating WATI...");
+    console.log("Sending to WATI...");
     console.log(customParams);
 
     // ============================
-    // Update WATI Contact
+    // WATI API
     // ============================
 
-    const response = await axios.post(
-      `${process.env.WATI_API_URL}/api/v1/updateContactAttributes/${target}`,
-      {
-        customParams,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.WATI_API_TOKEN}`,
-          "Content-Type": "application/json",
+    let response;
+
+    if (paymentType === "prepaid") {
+
+      console.log("Prepaid Order -> Add Contact");
+
+      const encodedPhone = encodeURIComponent(`(+${target})`);
+
+      response = await axios.post(
+        `${process.env.WATI_API_URL}/api/v1/addContact/${encodedPhone}?sourceType=shopify`,
+        {
+          name: customerName,
+          customParams,
         },
-      }
-    );
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.WATI_API_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+    } else {
+
+      console.log("COD Order -> Update Contact Attributes");
+
+      response = await axios.post(
+        `${process.env.WATI_API_URL}/api/v1/updateContactAttributes/${target}`,
+        {
+          customParams,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.WATI_API_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+    }
 
     console.log("WATI Success:");
     console.log(response.data);
